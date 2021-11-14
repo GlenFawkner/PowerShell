@@ -1,5 +1,5 @@
-$acctName="spt365@agtechnz.com"
-$orgName="agtechnz.com"
+$acctName= Read-Host -Prompt 'Input admin account name'
+$orgName=Read-Host -Prompt 'Input tennat name (Optional for SharePoint module use)'
 #Azure Active Directory
 Connect-MsolService
 #SharePoint Online
