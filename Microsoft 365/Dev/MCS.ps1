@@ -12,10 +12,7 @@ Connect-IPPSSession
 
 
 #Import Modules
-Import-Module getadminroles
-Import-Module GetMFAReport
-Import-Module GetForwardingReport
-#Import-Module getexternalusers
+Import-Module SkyPointModule
 
 #Export admin roles report
 Get-AdminRoles
