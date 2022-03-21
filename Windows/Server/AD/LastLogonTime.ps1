@@ -1,0 +1,1 @@
+﻿Get-ADUser -Filter * -Properties LastLogonDate | Select-Object SamAccountName,LastLogonDate | Export-Csv C:\Temp\astlogin_$((Get-Date).ToString('MM-dd-yyyy_hh-mm-ss')).csv -NoTypeInformation

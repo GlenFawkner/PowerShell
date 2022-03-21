@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clientCode": {
+      "type": "string",
+      "metadata": {
+        "description": "Three letter code for your client. Must be lower case"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the Active Directory Domain to be created"
+      }
+    },
+    "RDSServerIP": {
+      "type": "string",
+      "defaultValue": "10.0.0.5"
+    },
+    "windowsOSVersion": {
+      "type": "string",
+      "metadata": {
+        "description": "The Windows version for the VM."
+      }
+    }
+  },
+  "resources": []
+}

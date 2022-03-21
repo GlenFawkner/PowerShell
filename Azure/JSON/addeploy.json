@@ -1,0 +1,315 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clientCode": {
+      "type": "string",
+      "metadata": {
+        "description": "Three letter code for your client. Must be lower case"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "addressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/24"
+    },
+    "serverSubnet": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/25"
+    },
+    "vpnGatewaySubnet": {
+      "type": "string",
+      "defaultValue": "10.0.0.240/29"
+    },
+    "DomainControllerIP": {
+      "type": "string",
+      "defaultValue": "10.0.0.10"
+    },
+    "domainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the Active Directory Domain to be created"
+      }
+    },
+    "RDSRequired": {
+      "type": "string",
+      "allowedValues": [
+        "yes",
+        "no"
+      ],
+      "metadata": {
+        "description": "Do you require a RDS server Yes/No"
+      }
+    },
+    "RDSServerIP": {
+      "type": "string",
+      "defaultValue": "10.0.0.12"
+    },
+    "windowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2016-Datacenter",
+        "2019-Datacenter"
+      ],
+      "metadata": {
+        "description": "The Windows version for the VM."
+      }
+    }
+  },
+  "variables": {
+    "strgeAccountName": "[concat(parameters('clientcode'), 'storageacc')]",
+    "dcNicName": "[concat(parameters('clientcode'), '-DC-nic')]",
+    "addressPrefix": "[parameters('addressPrefix')]",
+    "serverSubnetName": "ServerSubnet",
+    "serversubnetPrefix": "[parameters('serverSubnet')]",
+    "vpnSubnetName": "GatewaySubnet",
+    "vpnsubnetPrefix": "[parameters('vpnGatewaySubnet')]",
+    "dcpublicIPAddressName": "[concat(parameters('clientcode'), '-DC-pip')]",
+    "dcvmName": "[concat(parameters('clientcode'), 'svr1')]",
+    "virtualNetworkName": "[concat(parameters('clientcode'), '-vnet')]",
+    "networkSecurityGroupName": "[concat(parameters('clientcode'), '-NSG')]",
+    "location": "australiaeast",
+    "_artifactsLocation": "https://sptdsc.blob.core.windows.net/dsc/DSCADC.zip",
+    "_artifactsLocation2": "https://sptdsc.blob.core.windows.net/dsc/",
+    "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('serverSubnetName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-11-01",
+      "name": "[variables('strgeAccountName')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "Storage",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2017-06-01",
+      "name": "[variables('dcpublicIPAddressName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic"
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "name": "[variables('networkSecurityGroupName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "DCRDP_3389",
+            "properties": {
+              "description": "RDP access to DC",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "114.134.6.67",
+              "destinationAddressPrefix": "[parameters('DomainControllerIP')]",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2018-10-01",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "dhcpOptions": {
+          "dnsServers": [
+            "[parameters('DomainControllerIp')]",
+            "1.1.1.1"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('serverSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('serversubnetPrefix')]",
+              "networkSecurityGroup":{"id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"}
+            }
+          },
+          {
+            "name": "[variables('vpnSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('vpnsubnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2017-06-01",
+      "name": "[variables('dcNicName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses/', variables('dcpublicIPAddressName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfigdc",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[parameters('DomainControllerIP')]",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('dcpublicIPAddressName'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2019-03-01",
+      "name": "[variables('dcvmName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[variables('dcNicName')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_B2s"
+        },
+        "osProfile": {
+          "computerName": "[variables('dcvmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "[parameters('windowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[concat(variables('dcvmName'),'_OSDisk')]",
+            "caching": "None",
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('dcNicName'))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true,
+            "storageUri": "[concat('http://', varaiables('strgeAccountName'), '.blob.core.windows.net')]"
+          }
+        }
+      },
+      "resources": [
+        {
+          "type": "extensions",
+          "apiVersion": "2018-10-01",
+          "name": "CreateADForest",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[variables('dcvmName')]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.19",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "modulesUrl": "[variables('_artifactsLocation')]",
+              "configurationFunction": "CreateAD.ps1\\CreateAD",
+              "Properties": {
+                "DomainName": "[parameters('domainName')]",
+                "AdminCreds": {
+                  "UserName": "[parameters('adminUsername')]",
+                  "Password": "PrivateSettingsRef:AdminPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdminPassword": "[parameters('adminPassword')]"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "DeployRDS",
+      "dependsOn": [
+        "CreateADForest"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(variables('_artifactsLocation2'),concat(parameters('RDSRequired'),'rds.json'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientCode": {
+            "value": "[parameters('clientCode')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+          "windowsOSVersion": {
+            "value": "[parameters('windowsOSVersion')]"
+          },
+          "RDSServerIP": {
+            "value": "[parameters('RDSServerIP')]"
+          },
+          "DomainControllerIP": {
+            "value": "[parameters('DomainControllerIP')]"
+          }
+        }
+
+        }
+    }
+  ]
+}

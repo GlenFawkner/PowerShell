@@ -1,0 +1,3 @@
+Passphrase : bc096914-f42b-4be0-8cbc-b1b5fe991d83
+Vault      : AZBackups
+Machine    : SPTNBK20

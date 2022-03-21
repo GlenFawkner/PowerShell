@@ -1,0 +1,1 @@
+﻿Get-Mailbox -Identity * | Where-Object {$_.EmailAddresses -like 'smtp:customer.services@netlogix.co.nz'} | Format-List Identity, EmailAddresses

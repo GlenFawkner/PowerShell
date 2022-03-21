@@ -1,0 +1,1 @@
+﻿Add-MailboxFolderPermission -Identity :\Calendar –User  –AccessRights Reviewer

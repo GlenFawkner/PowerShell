@@ -1,0 +1,1 @@
+﻿Get-Mailbox -Identity boardroom@northendlaw.co.nz | Set-Mailbox -Type Room

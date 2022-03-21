@@ -1,0 +1,202 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clientCode": {
+      "type": "string",
+      "metadata": {
+        "description": "Three letter code for your client. Must be lower case"
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the Active Directory Domain to be created"
+      }
+    },
+    "adVnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "The vnet name of AD domain. For example johnvnet1"
+      },
+      "defaultValue": "ServerSubnet"
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "DomainControllerIP": {
+      "type": "string",
+      "defaultValue": "10.0.0.4"
+    },
+    "windowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2016-Datacenter",
+      "allowedValues": [
+        "2016-Datacenter",
+        "2019-Datacenter"
+      ],
+      "metadata": {
+        "description": "The Windows version for the VM."
+      }
+    },
+    "RDSServerIP": {
+      "type": "string",
+      "defaultValue": "10.0.0.5"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    }
+  },
+  "variables": {
+    "RDSNicName": "[concat(parameters('clientcode'), '-RDS-nic')]",
+    "serverSubnetName": "ServerSubnet",
+    "virtualNetworkName": "[concat(parameters('clientcode'), '-vnet')]",
+    "imagePublisher": "MicrosoftWindowsServer",
+    "imageOffer": "WindowsServer",
+    "dnsServerPrivateIp": "10.0.0.4",
+    "RDSvmName": "[concat(parameters('clientcode'), 'rds1')]",
+    "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('serverSubnetName'))]",
+    "RDSpublicIPAddressName": "[concat(parameters('clientcode'), '-RDS-pip')]",
+    "brokerIpRef": "brokerpublicIp",
+    "gatewayPublicIPName": "[concat(parameters('clientcode'), '-RDSGW-pip')]",
+    "location": "australiaeast",
+    "numberOfRdshInstances": 1,
+    "_artifactsLocation2": "https://sptdsc.blob.core.windows.net/dsc/DSCRDS.zip"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('RDSpublicIPAddressName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('RDSNicName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses',variables('RDSpublicIPAddressName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfigdc",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "[parameters('RDSServerIP')]",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('RDSpublicIPAddressName'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": [
+            "[parameters('DomainControllerIp')]"
+          ]
+        }
+      }
+    },
+    {
+      "apiVersion": "2019-03-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('RDSvmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('RDSNicName')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_D4s_v3"
+        },
+        "osProfile": {
+          "computerName": "[variables('RDSvmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "MicrosoftWindowsServer",
+              "offer": "WindowsServer",
+              "sku": "[parameters('windowsOSVersion')]",
+              "version": "latest"
+            },
+            "osDisk": {
+              "name": "[concat(variables('RDSvmName'),'_OSDisk')]",
+              "caching": "None",
+              "createOption": "FromImage",
+              "managedDisk": {
+                "storageAccountType": "StandardSSD_LRS"
+              }
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('RDSNicName'))]"
+              }
+            ]
+          },
+	"diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true,
+            "storageUri": "[concat('http://', varaiables('strgeAccountName'), '.blob.core.windows.net')]"
+          }
+        }
+        },
+      "resources": [
+        {
+          "apiVersion": "2019-03-01",
+          "type": "extensions",
+          "name": "RDSconfiguration",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('RDSvmName'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.21",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "modulesUrl": "[variables('_artifactsLocation2')]",
+              "configurationFunction": "rdsconfig.ps1\\rdsconfig",
+              "Properties": {
+                "DomainName": "[parameters('domainName')]",
+                "AdminCreds": {
+                  "UserName": "[parameters('adminUsername')]",
+                  "Password": "PrivateSettingsRef:AdminPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdminPassword": "[parameters('adminPassword')]"
+              }
+            }
+          }
+        }
+      ]
+     }
+  ]
+}

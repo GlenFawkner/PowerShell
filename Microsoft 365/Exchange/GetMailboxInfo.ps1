@@ -1,0 +1,1 @@
+﻿Get-MailboxStatistics -Database 'Mailbox Database 0717429582' | format-table DisplayName, TotalItemSize, TotalDeletedItemSize, Database, ServerName 
